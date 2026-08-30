@@ -1,0 +1,2011 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<meta name="theme-color" content="#080808">
+<meta name="description" content="Komikindo Reader">
+<title>Komikindo — Manga Reader</title>
+
+<style>
+:root{
+  --bg:#070707;
+  --bg2:#0d0d0d;
+  --card:rgba(255,255,255,.055);
+  --card2:rgba(255,255,255,.085);
+  --border:rgba(255,255,255,.1);
+  --text:#f5f5f5;
+  --muted:#909090;
+  --accent:#fff;
+  --radius:20px;
+  --shadow:0 20px 70px rgba(0,0,0,.45);
+}
+
+*{
+  box-sizing:border-box;
+  margin:0;
+  padding:0;
+}
+
+html{
+  scroll-behavior:smooth;
+}
+
+body{
+  min-height:100vh;
+  color:var(--text);
+  background:
+    radial-gradient(circle at 15% 10%,rgba(255,255,255,.07),transparent 25%),
+    radial-gradient(circle at 85% 20%,rgba(255,255,255,.04),transparent 25%),
+    linear-gradient(135deg,#050505,#0b0b0b 50%,#050505);
+  font-family:
+    Inter,
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+}
+
+button,
+input{
+  font:inherit;
+}
+
+button{
+  cursor:pointer;
+}
+
+a{
+  color:inherit;
+  text-decoration:none;
+}
+
+/* =========================
+   HEADER
+========================= */
+
+.header{
+  position:sticky;
+  top:0;
+  z-index:100;
+  height:72px;
+  display:flex;
+  align-items:center;
+  border-bottom:1px solid var(--border);
+  background:rgba(5,5,5,.72);
+  backdrop-filter:blur(24px);
+  -webkit-backdrop-filter:blur(24px);
+}
+
+.header-inner{
+  width:min(1200px,calc(100% - 32px));
+  margin:auto;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:20px;
+}
+
+.brand{
+  display:flex;
+  align-items:center;
+  gap:12px;
+  font-weight:800;
+  letter-spacing:-.04em;
+}
+
+.brand-logo{
+  width:38px;
+  height:38px;
+  border:1px solid rgba(255,255,255,.2);
+  border-radius:12px;
+  display:grid;
+  place-items:center;
+  background:linear-gradient(
+    145deg,
+    rgba(255,255,255,.14),
+    rgba(255,255,255,.025)
+  );
+  box-shadow:
+    inset 0 1px rgba(255,255,255,.12),
+    0 10px 30px rgba(0,0,0,.3);
+}
+
+.brand-logo span{
+  font-size:17px;
+}
+
+.brand-name{
+  font-size:16px;
+}
+
+.nav{
+  display:flex;
+  gap:5px;
+}
+
+.nav button{
+  color:#aaa;
+  background:transparent;
+  border:0;
+  padding:9px 13px;
+  border-radius:10px;
+  transition:.2s;
+}
+
+.nav button:hover,
+.nav button.active{
+  color:#fff;
+  background:rgba(255,255,255,.08);
+}
+
+.menu-btn{
+  display:none;
+  border:1px solid var(--border);
+  color:#fff;
+  background:var(--card);
+  border-radius:12px;
+  width:42px;
+  height:42px;
+}
+
+/* =========================
+   MAIN
+========================= */
+
+main{
+  width:min(1200px,calc(100% - 32px));
+  margin:auto;
+}
+
+.page{
+  display:none;
+  padding:46px 0 80px;
+  animation:pageIn .35s ease;
+}
+
+.page.active{
+  display:block;
+}
+
+@keyframes pageIn{
+  from{
+    opacity:0;
+    transform:translateY(12px);
+  }
+  to{
+    opacity:1;
+    transform:none;
+  }
+}
+
+.hero{
+  min-height:360px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  text-align:center;
+  position:relative;
+  overflow:hidden;
+  border:1px solid var(--border);
+  border-radius:30px;
+  background:
+    linear-gradient(
+      145deg,
+      rgba(255,255,255,.09),
+      rgba(255,255,255,.025)
+    );
+  box-shadow:var(--shadow);
+}
+
+.hero:before{
+  content:"";
+  position:absolute;
+  width:350px;
+  height:350px;
+  border-radius:50%;
+  background:rgba(255,255,255,.06);
+  filter:blur(90px);
+}
+
+.hero-content{
+  position:relative;
+  z-index:1;
+  width:min(750px,90%);
+}
+
+.hero-kicker{
+  color:#999;
+  font-size:12px;
+  text-transform:uppercase;
+  letter-spacing:.2em;
+  margin-bottom:15px;
+}
+
+.hero h1{
+  font-size:clamp(42px,7vw,78px);
+  line-height:.95;
+  letter-spacing:-.07em;
+}
+
+.hero p{
+  color:#999;
+  max-width:580px;
+  margin:20px auto 25px;
+  line-height:1.7;
+}
+
+.search-box{
+  display:flex;
+  max-width:620px;
+  margin:auto;
+  padding:6px;
+  border:1px solid var(--border);
+  background:rgba(0,0,0,.3);
+  border-radius:16px;
+}
+
+.search-box input{
+  min-width:0;
+  flex:1;
+  border:0;
+  outline:0;
+  color:#fff;
+  background:transparent;
+  padding:13px 15px;
+}
+
+.search-box button{
+  border:0;
+  border-radius:11px;
+  padding:0 20px;
+  color:#080808;
+  background:#fff;
+  font-weight:700;
+}
+
+/* =========================
+   SECTION
+========================= */
+
+.section{
+  margin-top:45px;
+}
+
+.section-head{
+  display:flex;
+  align-items:end;
+  justify-content:space-between;
+  gap:15px;
+  margin-bottom:18px;
+}
+
+.section-title{
+  font-size:25px;
+  letter-spacing:-.04em;
+}
+
+.section-sub{
+  color:#777;
+  font-size:13px;
+}
+
+/* =========================
+   CARDS
+========================= */
+
+.grid{
+  display:grid;
+  grid-template-columns:
+    repeat(5,minmax(0,1fr));
+  gap:16px;
+}
+
+.manga-card{
+  min-width:0;
+  border:1px solid var(--border);
+  border-radius:18px;
+  overflow:hidden;
+  background:var(--card);
+  transition:
+    transform .25s,
+    border-color .25s,
+    background .25s;
+}
+
+.manga-card:hover{
+  transform:translateY(-5px);
+  border-color:rgba(255,255,255,.22);
+  background:var(--card2);
+}
+
+.cover{
+  position:relative;
+  aspect-ratio:2/3;
+  overflow:hidden;
+  background:#111;
+}
+
+.cover img{
+  width:100%;
+  height:100%;
+  object-fit:cover;
+  display:block;
+  transition:transform .35s;
+}
+
+.manga-card:hover .cover img{
+  transform:scale(1.04);
+}
+
+.rating{
+  position:absolute;
+  top:9px;
+  right:9px;
+  padding:5px 8px;
+  border-radius:8px;
+  background:rgba(0,0,0,.72);
+  backdrop-filter:blur(10px);
+  font-size:11px;
+}
+
+.card-info{
+  padding:12px;
+}
+
+.card-title{
+  font-size:14px;
+  line-height:1.4;
+  font-weight:700;
+  display:-webkit-box;
+  -webkit-line-clamp:2;
+  -webkit-box-orient:vertical;
+  overflow:hidden;
+}
+
+.card-meta{
+  display:flex;
+  justify-content:space-between;
+  gap:8px;
+  margin-top:8px;
+  color:#777;
+  font-size:11px;
+}
+
+/* =========================
+   DETAIL
+========================= */
+
+.detail-box{
+  display:grid;
+  grid-template-columns:250px 1fr;
+  gap:30px;
+  padding:28px;
+  border:1px solid var(--border);
+  border-radius:25px;
+  background:var(--card);
+  box-shadow:var(--shadow);
+}
+
+.detail-cover{
+  width:100%;
+  aspect-ratio:2/3;
+  object-fit:cover;
+  border-radius:16px;
+  background:#111;
+}
+
+.detail-content h1{
+  font-size:clamp(30px,5vw,52px);
+  letter-spacing:-.06em;
+  line-height:1;
+  margin-bottom:18px;
+}
+
+.info-row{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  margin-bottom:18px;
+}
+
+.tag{
+  padding:7px 10px;
+  border-radius:9px;
+  background:rgba(255,255,255,.07);
+  border:1px solid var(--border);
+  color:#bbb;
+  font-size:12px;
+}
+
+.synopsis{
+  color:#999;
+  line-height:1.8;
+  max-width:750px;
+}
+
+.detail-actions{
+  display:flex;
+  flex-wrap:wrap;
+  gap:10px;
+  margin-top:24px;
+}
+
+.btn{
+  border:1px solid var(--border);
+  background:var(--card2);
+  color:#fff;
+  border-radius:12px;
+  padding:11px 16px;
+  transition:.2s;
+}
+
+.btn:hover{
+  background:rgba(255,255,255,.13);
+}
+
+.btn.primary{
+  color:#050505;
+  background:#fff;
+  font-weight:700;
+}
+
+/* =========================
+   CHAPTERS
+========================= */
+
+.chapter-list{
+  display:grid;
+  gap:8px;
+}
+
+.chapter{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:15px;
+  padding:15px 17px;
+  border:1px solid var(--border);
+  border-radius:13px;
+  background:var(--card);
+  transition:.2s;
+}
+
+.chapter:hover{
+  background:var(--card2);
+  transform:translateX(3px);
+}
+
+.chapter-name{
+  font-weight:650;
+}
+
+.chapter-date{
+  color:#777;
+  font-size:12px;
+}
+
+/* =========================
+   READER
+========================= */
+
+.reader-page{
+  padding-top:20px;
+}
+
+.reader-toolbar{
+  position:sticky;
+  top:72px;
+  z-index:50;
+  margin-bottom:18px;
+  padding:10px;
+  border:1px solid var(--border);
+  border-radius:15px;
+  background:rgba(8,8,8,.8);
+  backdrop-filter:blur(20px);
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+}
+
+.reader-title{
+  min-width:0;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  font-size:13px;
+  font-weight:700;
+}
+
+.reader-controls{
+  display:flex;
+  gap:6px;
+}
+
+.reader-controls button{
+  border:1px solid var(--border);
+  background:var(--card);
+  color:#fff;
+  border-radius:9px;
+  padding:8px 11px;
+}
+
+.reader{
+  max-width:900px;
+  margin:auto;
+  background:#000;
+}
+
+.reader img{
+  display:block;
+  width:100%;
+  height:auto;
+  margin:0 auto;
+}
+
+.reader-bottom{
+  max-width:900px;
+  margin:20px auto;
+  display:flex;
+  justify-content:center;
+  gap:10px;
+}
+
+/* =========================
+   SEARCH
+========================= */
+
+.search-page-box{
+  margin-bottom:25px;
+}
+
+.search-page-box input{
+  width:100%;
+  padding:15px 17px;
+  color:#fff;
+  background:var(--card);
+  border:1px solid var(--border);
+  outline:0;
+  border-radius:14px;
+}
+
+.search-page-box input:focus{
+  border-color:rgba(255,255,255,.25);
+}
+
+/* =========================
+   LOADING
+========================= */
+
+.loading{
+  min-height:180px;
+  display:grid;
+  place-items:center;
+  color:#888;
+}
+
+.spinner{
+  width:30px;
+  height:30px;
+  border-radius:50%;
+  border:2px solid rgba(255,255,255,.12);
+  border-top-color:#fff;
+  animation:spin .8s linear infinite;
+}
+
+@keyframes spin{
+  to{
+    transform:rotate(360deg);
+  }
+}
+
+.empty{
+  padding:50px 20px;
+  text-align:center;
+  color:#777;
+  border:1px dashed var(--border);
+  border-radius:18px;
+}
+
+.error{
+  padding:20px;
+  border:1px solid rgba(255,80,80,.2);
+  border-radius:15px;
+  color:#ff8d8d;
+  background:rgba(255,50,50,.05);
+}
+
+/* =========================
+   MOBILE
+========================= */
+
+@media(max-width:900px){
+
+  .grid{
+    grid-template-columns:
+      repeat(4,minmax(0,1fr));
+  }
+
+}
+
+@media(max-width:700px){
+
+  .header{
+    height:64px;
+  }
+
+  .nav{
+    display:none;
+    position:absolute;
+    top:64px;
+    left:16px;
+    right:16px;
+    padding:8px;
+    flex-direction:column;
+    border:1px solid var(--border);
+    border-radius:15px;
+    background:rgba(8,8,8,.95);
+    backdrop-filter:blur(20px);
+  }
+
+  .nav.open{
+    display:flex;
+  }
+
+  .nav button{
+    text-align:left;
+    padding:13px;
+  }
+
+  .menu-btn{
+    display:block;
+  }
+
+  .hero{
+    min-height:390px;
+  }
+
+  .grid{
+    grid-template-columns:
+      repeat(2,minmax(0,1fr));
+    gap:12px;
+  }
+
+  .detail-box{
+    grid-template-columns:110px 1fr;
+    gap:18px;
+    padding:18px;
+  }
+
+  .detail-content h1{
+    font-size:25px;
+  }
+
+  .detail-cover{
+    border-radius:11px;
+  }
+
+  .synopsis{
+    grid-column:1/-1;
+  }
+
+  .detail-actions{
+    grid-column:1/-1;
+  }
+
+  .reader-toolbar{
+    top:64px;
+  }
+
+}
+
+@media(max-width:420px){
+
+  main{
+    width:min(100% - 20px,1200px);
+  }
+
+  .page{
+    padding-top:25px;
+  }
+
+  .hero{
+    border-radius:20px;
+  }
+
+  .hero h1{
+    font-size:43px;
+  }
+
+  .detail-box{
+    grid-template-columns:90px 1fr;
+  }
+
+  .card-info{
+    padding:10px;
+  }
+
+  .card-title{
+    font-size:12px;
+  }
+
+}
+</style>
+</head>
+
+<body>
+
+<header class="header">
+
+  <div class="header-inner">
+
+    <a class="brand" href="#" onclick="showPage('home');return false;">
+      <div class="brand-logo">
+        <span>K</span>
+      </div>
+      <div class="brand-name">
+        Komikindo
+      </div>
+    </a>
+
+    <nav class="nav" id="nav">
+      <button data-page="home" onclick="showPage('home')">
+        Home
+      </button>
+
+      <button data-page="search" onclick="showPage('search')">
+        Search
+      </button>
+
+      <button data-page="latest" onclick="showPage('latest')">
+        Terbaru
+      </button>
+
+      <button data-page="list" onclick="showPage('list')">
+        Daftar Manga
+      </button>
+    </nav>
+
+    <button
+      class="menu-btn"
+      onclick="toggleMenu()"
+      aria-label="Menu">
+      ☰
+    </button>
+
+  </div>
+
+</header>
+
+
+<main>
+
+<!-- HOME -->
+
+<section id="home" class="page active">
+
+  <div class="hero">
+
+    <div class="hero-content">
+
+      <div class="hero-kicker">
+        Manga Reader
+      </div>
+
+      <h1>
+        Read your<br>
+        next story.
+      </h1>
+
+      <p>
+        Jelajahi manga, cari judul favorit,
+        lihat detail dan baca chapter
+        dalam satu interface.
+      </p>
+
+      <form
+        class="search-box"
+        onsubmit="homeSearch(event)">
+
+        <input
+          id="heroSearch"
+          placeholder="Cari manga..."
+          autocomplete="off">
+
+        <button>
+          Search
+        </button>
+
+      </form>
+
+    </div>
+
+  </div>
+
+  <div class="section">
+
+    <div class="section-head">
+      <div>
+        <div class="section-title">
+          Popular & Update
+        </div>
+
+        <div class="section-sub">
+          Manga yang tersedia dari sumber
+        </div>
+      </div>
+    </div>
+
+    <div
+      id="homeGrid"
+      class="grid">
+    </div>
+
+  </div>
+
+</section>
+
+
+<!-- SEARCH -->
+
+<section id="search" class="page">
+
+  <div class="section">
+
+    <div class="section-head">
+      <div>
+        <div class="section-title">
+          Search Manga
+        </div>
+
+        <div class="section-sub">
+          Cari berdasarkan judul
+        </div>
+      </div>
+    </div>
+
+    <div class="search-page-box">
+
+      <form onsubmit="performSearch(event)">
+
+        <input
+          id="searchInput"
+          placeholder="Contoh: Magic Emperor"
+          autocomplete="off">
+
+      </form>
+
+    </div>
+
+    <div
+      id="searchGrid"
+      class="grid">
+    </div>
+
+  </div>
+
+</section>
+
+
+<!-- LATEST -->
+
+<section id="latest" class="page">
+
+  <div class="section">
+
+    <div class="section-head">
+
+      <div>
+        <div class="section-title">
+          Komik Terbaru
+        </div>
+
+        <div class="section-sub">
+          Update terbaru
+        </div>
+      </div>
+
+      <button
+        class="btn"
+        onclick="loadLatest()">
+        Refresh
+      </button>
+
+    </div>
+
+    <div
+      id="latestGrid"
+      class="grid">
+    </div>
+
+  </div>
+
+</section>
+
+
+<!-- LIST -->
+
+<section id="list" class="page">
+
+  <div class="section">
+
+    <div class="section-head">
+
+      <div>
+        <div class="section-title">
+          Daftar Manga
+        </div>
+
+        <div class="section-sub">
+          Koleksi manga
+        </div>
+      </div>
+
+    </div>
+
+    <div
+      id="listGrid"
+      class="grid">
+    </div>
+
+  </div>
+
+</section>
+
+
+<!-- DETAIL -->
+
+<section id="detail" class="page">
+
+  <div id="detailContent"></div>
+
+</section>
+
+
+<!-- READER -->
+
+<section id="readerPage" class="page reader-page">
+
+  <div class="reader-toolbar">
+
+    <div
+      id="readerTitle"
+      class="reader-title">
+      Reader
+    </div>
+
+    <div class="reader-controls">
+
+      <button onclick="readerBack()">
+        ←
+      </button>
+
+      <button onclick="previousChapter()">
+        Prev
+      </button>
+
+      <button onclick="nextChapter()">
+        Next
+      </button>
+
+    </div>
+
+  </div>
+
+  <div
+    id="reader"
+    class="reader">
+  </div>
+
+  <div
+    id="readerBottom"
+    class="reader-bottom">
+  </div>
+
+</section>
+
+</main>
+
+
+<script>
+/* =========================================================
+   CONFIG
+========================================================= */
+
+const API =
+  "/api/komikindo";
+
+
+let currentManga = null;
+let currentChapters = [];
+let currentChapterIndex = -1;
+
+
+/* =========================================================
+   API
+========================================================= */
+
+async function api(
+  action,
+  params = {}
+){
+
+  const query =
+    new URLSearchParams({
+      action,
+      ...params
+    });
+
+  const response =
+    await fetch(
+      `${API}?${query.toString()}`
+    );
+
+  let data;
+
+  try{
+    data =
+      await response.json();
+  }catch{
+    throw new Error(
+      "Server mengembalikan response tidak valid."
+    );
+  }
+
+  if(
+    !response.ok ||
+    data.status === false
+  ){
+
+    throw new Error(
+      data.message ||
+      "Request gagal."
+    );
+  }
+
+  return data;
+}
+
+
+/* =========================================================
+   PAGE
+========================================================= */
+
+function showPage(
+  id
+){
+
+  document
+    .querySelectorAll(".page")
+    .forEach(
+      page =>
+        page.classList.remove("active")
+    );
+
+  const target =
+    document.getElementById(id);
+
+  if(target){
+    target.classList.add("active");
+  }
+
+  document
+    .querySelectorAll(".nav button")
+    .forEach(
+      button => {
+
+        button.classList.toggle(
+          "active",
+          button.dataset.page === id
+        );
+
+      }
+    );
+
+  document
+    .getElementById("nav")
+    .classList.remove("open");
+
+  window.scrollTo({
+    top:0,
+    behavior:"smooth"
+  });
+
+
+  if(id === "home"){
+    loadHome();
+  }
+
+  if(id === "latest"){
+    loadLatest();
+  }
+
+  if(id === "list"){
+    loadList();
+  }
+}
+
+
+function toggleMenu(){
+
+  document
+    .getElementById("nav")
+    .classList.toggle("open");
+
+}
+
+
+/* =========================================================
+   LOADING
+========================================================= */
+
+function loading(
+  element
+){
+
+  element.innerHTML = `
+    <div class="loading">
+      <div class="spinner"></div>
+    </div>
+  `;
+
+}
+
+
+/* =========================================================
+   ERROR
+========================================================= */
+
+function showError(
+  element,
+  error
+){
+
+  element.innerHTML = `
+    <div class="error">
+      ${escapeHtml(
+        error?.message ||
+        "Terjadi kesalahan."
+      )}
+    </div>
+  `;
+
+}
+
+
+/* =========================================================
+   ESCAPE
+========================================================= */
+
+function escapeHtml(
+  value
+){
+
+  return String(value ?? "")
+    .replaceAll("&","&amp;")
+    .replaceAll("<","&lt;")
+    .replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;")
+    .replaceAll("'","&#039;");
+}
+
+
+/* =========================================================
+   CARD
+========================================================= */
+
+function mangaCard(
+  manga
+){
+
+  const thumbnail =
+    manga.thumbnail ||
+    "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='450'%3E%3Crect width='100%25' height='100%25' fill='%23111111'/%3E%3C/svg%3E";
+
+  return `
+    <article
+      class="manga-card"
+      onclick="openManga('${escapeAttr(
+        manga.slug || ""
+      )}')">
+
+      <div class="cover">
+
+        <img
+          loading="lazy"
+          src="${escapeAttr(thumbnail)}"
+          alt="${escapeAttr(manga.title)}"
+          onerror="this.style.display='none'">
+
+        ${
+          manga.rating
+          ? `
+            <div class="rating">
+              ★ ${escapeHtml(manga.rating)}
+            </div>
+          `
+          : ""
+        }
+
+      </div>
+
+      <div class="card-info">
+
+        <div class="card-title">
+          ${escapeHtml(manga.title)}
+        </div>
+
+        <div class="card-meta">
+
+          <span>
+            ${escapeHtml(
+              manga.chapter || "Manga"
+            )}
+          </span>
+
+          <span>
+            ${escapeHtml(
+              manga.type || ""
+            )}
+          </span>
+
+        </div>
+
+      </div>
+
+    </article>
+  `;
+}
+
+
+function escapeAttr(
+  value
+){
+
+  return String(value ?? "")
+    .replaceAll("&","&amp;")
+    .replaceAll('"',"&quot;")
+    .replaceAll("'","&#039;")
+    .replaceAll("<","&lt;")
+    .replaceAll(">","&gt;");
+}
+
+
+/* =========================================================
+   RENDER GRID
+========================================================= */
+
+function renderGrid(
+  element,
+  data
+){
+
+  if(
+    !data ||
+    !data.length
+  ){
+
+    element.innerHTML = `
+      <div class="empty" style="grid-column:1/-1">
+        Manga tidak ditemukan.
+      </div>
+    `;
+
+    return;
+  }
+
+  element.innerHTML =
+    data
+      .map(mangaCard)
+      .join("");
+}
+
+
+/* =========================================================
+   HOME
+========================================================= */
+
+async function loadHome(){
+
+  const grid =
+    document.getElementById(
+      "homeGrid"
+    );
+
+  loading(grid);
+
+  try{
+
+    const result =
+      await api("home");
+
+    const data =
+      [
+        ...(result.data?.hotManga || []),
+        ...(result.data?.latestUpdate || [])
+      ];
+
+    const unique =
+      data.filter(
+        (item,index,self) =>
+          index ===
+          self.findIndex(
+            x =>
+              x.slug === item.slug
+          )
+      );
+
+    renderGrid(
+      grid,
+      unique
+    );
+
+  }catch(error){
+
+    showError(
+      grid,
+      error
+    );
+  }
+
+}
+
+
+/* =========================================================
+   SEARCH
+========================================================= */
+
+function homeSearch(
+  event
+){
+
+  event.preventDefault();
+
+  const value =
+    document
+      .getElementById(
+        "heroSearch"
+      )
+      .value
+      .trim();
+
+  if(!value){
+    return;
+  }
+
+  document
+    .getElementById(
+      "searchInput"
+    )
+    .value = value;
+
+  showPage("search");
+
+  performSearch();
+}
+
+
+async function performSearch(
+  event
+){
+
+  if(event){
+    event.preventDefault();
+  }
+
+  const query =
+    document
+      .getElementById(
+        "searchInput"
+      )
+      .value
+      .trim();
+
+  const grid =
+    document.getElementById(
+      "searchGrid"
+    );
+
+  if(!query){
+
+    grid.innerHTML = `
+      <div class="empty"
+           style="grid-column:1/-1">
+        Masukkan judul manga.
+      </div>
+    `;
+
+    return;
+  }
+
+  loading(grid);
+
+  try{
+
+    const result =
+      await api(
+        "search",
+        {
+          q:query,
+          page:"1"
+        }
+      );
+
+    renderGrid(
+      grid,
+      result.data || []
+    );
+
+  }catch(error){
+
+    showError(
+      grid,
+      error
+    );
+  }
+
+}
+
+
+/* =========================================================
+   LATEST
+========================================================= */
+
+async function loadLatest(){
+
+  const grid =
+    document.getElementById(
+      "latestGrid"
+    );
+
+  loading(grid);
+
+  try{
+
+    const result =
+      await api(
+        "latest",
+        {
+          page:"1"
+        }
+      );
+
+    renderGrid(
+      grid,
+      result.data || []
+    );
+
+  }catch(error){
+
+    showError(
+      grid,
+      error
+    );
+  }
+
+}
+
+
+/* =========================================================
+   LIST
+========================================================= */
+
+async function loadList(){
+
+  const grid =
+    document.getElementById(
+      "listGrid"
+    );
+
+  loading(grid);
+
+  try{
+
+    const result =
+      await api(
+        "list",
+        {
+          page:"1"
+        }
+      );
+
+    renderGrid(
+      grid,
+      result.data || []
+    );
+
+  }catch(error){
+
+    showError(
+      grid,
+      error
+    );
+  }
+
+}
+
+
+/* =========================================================
+   DETAIL
+========================================================= */
+
+async function openManga(
+  slug
+){
+
+  if(!slug){
+    return;
+  }
+
+  showPageWithoutReload(
+    "detail"
+  );
+
+  const container =
+    document.getElementById(
+      "detailContent"
+    );
+
+  loading(container);
+
+  try{
+
+    const result =
+      await api(
+        "detail",
+        {
+          slug
+        }
+      );
+
+    currentManga =
+      result.data;
+
+    currentChapters =
+      result.data.chapterList || [];
+
+    renderDetail(
+      result.data
+    );
+
+  }catch(error){
+
+    showError(
+      container,
+      error
+    );
+  }
+
+}
+
+
+function showPageWithoutReload(
+  id
+){
+
+  document
+    .querySelectorAll(".page")
+    .forEach(
+      page =>
+        page.classList.remove("active")
+    );
+
+  document
+    .getElementById(id)
+    .classList.add("active");
+
+  document
+    .getElementById("nav")
+    .classList.remove("open");
+
+  window.scrollTo({
+    top:0,
+    behavior:"smooth"
+  });
+}
+
+
+/* =========================================================
+   DETAIL RENDER
+========================================================= */
+
+function renderDetail(
+  manga
+){
+
+  const container =
+    document.getElementById(
+      "detailContent"
+    );
+
+  const cover =
+    manga.thumbnail ||
+    "";
+
+  const genres =
+    (manga.genres || [])
+      .map(
+        genre =>
+          `<span class="tag">
+             ${escapeHtml(genre)}
+           </span>`
+      )
+      .join("");
+
+  container.innerHTML = `
+
+    <div class="detail-box">
+
+      <img
+        class="detail-cover"
+        src="${escapeAttr(cover)}"
+        alt="${escapeAttr(manga.title)}">
+
+      <div class="detail-content">
+
+        <h1>
+          ${escapeHtml(
+            manga.title || "Unknown"
+          )}
+        </h1>
+
+        <div class="info-row">
+
+          ${
+            manga.rating
+            ? `
+              <span class="tag">
+                ★ ${escapeHtml(manga.rating)}
+              </span>
+            `
+            : ""
+          }
+
+          ${
+            manga.status
+            ? `
+              <span class="tag">
+                ${escapeHtml(manga.status)}
+              </span>
+            `
+            : ""
+          }
+
+          ${
+            manga.type
+            ? `
+              <span class="tag">
+                ${escapeHtml(manga.type)}
+              </span>
+            `
+            : ""
+          }
+
+        </div>
+
+        <div class="info-row">
+          ${genres}
+        </div>
+
+        <div class="synopsis">
+
+          ${
+            manga.synopsis
+            ? escapeHtml(
+                manga.synopsis
+              )
+            : "Sinopsis tidak tersedia."
+          }
+
+        </div>
+
+        <div class="detail-actions">
+
+          ${
+            currentChapters.length
+            ? `
+              <button
+                class="btn primary"
+                onclick="readChapter(0)">
+                ▶ Baca
+              </button>
+            `
+            : ""
+          }
+
+          <button
+            class="btn"
+            onclick="showPage('search')">
+            ← Kembali
+          </button>
+
+        </div>
+
+      </div>
+
+      <div
+        style="grid-column:1/-1">
+
+        <div class="section-head">
+
+          <div>
+            <div class="section-title">
+              Chapter
+            </div>
+
+            <div class="section-sub">
+              ${currentChapters.length}
+              chapter tersedia
+            </div>
+          </div>
+
+        </div>
+
+        <div class="chapter-list">
+
+          ${
+            currentChapters.length
+            ? currentChapters
+              .map(
+                (chapter,index) => `
+
+                  <button
+                    class="chapter"
+                    onclick="readChapter(${index})">
+
+                    <span class="chapter-name">
+                      ${escapeHtml(
+                        chapter.title ||
+                        chapter.chapter ||
+                        `Chapter ${index+1}`
+                      )}
+                    </span>
+
+                    <span class="chapter-date">
+                      ${escapeHtml(
+                        chapter.date || ""
+                      )}
+                    </span>
+
+                  </button>
+
+                `
+              )
+              .join("")
+            : `
+              <div class="empty">
+                Chapter tidak ditemukan.
+              </div>
+            `
+          }
+
+        </div>
+
+      </div>
+
+    </div>
+
+  `;
+}
+
+
+/* =========================================================
+   READER
+========================================================= */
+
+async function readChapter(
+  index
+){
+
+  if(
+    index < 0 ||
+    index >= currentChapters.length
+  ){
+    return;
+  }
+
+  currentChapterIndex =
+    index;
+
+  const chapter =
+    currentChapters[index];
+
+  showPageWithoutReload(
+    "readerPage"
+  );
+
+  const reader =
+    document.getElementById(
+      "reader"
+    );
+
+  const title =
+    document.getElementById(
+      "readerTitle"
+    );
+
+  title.textContent =
+    chapter.title ||
+    "Reader";
+
+  loading(reader);
+
+  try{
+
+    const result =
+      await api(
+        "chapter",
+        {
+          slug:
+            chapter.slug
+        }
+      );
+
+    const images =
+      result.data?.images || [];
+
+    if(!images.length){
+
+      reader.innerHTML = `
+        <div class="empty">
+          Halaman chapter tidak ditemukan.
+        </div>
+      `;
+
+      return;
+    }
+
+    reader.innerHTML =
+      images
+        .map(
+          (src,index) => `
+            <img
+              src="${escapeAttr(src)}"
+              loading="${
+                index < 3
+                  ? "eager"
+                  : "lazy"
+              }"
+              alt="Page ${index+1}"
+              onerror="
+                this.style.display='none'
+              ">
+          `
+        )
+        .join("");
+
+    renderReaderBottom();
+
+    window.scrollTo({
+      top:0,
+      behavior:"instant"
+    });
+
+  }catch(error){
+
+    showError(
+      reader,
+      error
+    );
+  }
+
+}
+
+
+/* =========================================================
+   READER CONTROLS
+========================================================= */
+
+function renderReaderBottom(){
+
+  const bottom =
+    document.getElementById(
+      "readerBottom"
+    );
+
+  bottom.innerHTML = `
+
+    <button
+      class="btn"
+      onclick="previousChapter()"
+      ${
+        currentChapterIndex <= 0
+        ? "disabled"
+        : ""
+      }>
+      ← Previous
+    </button>
+
+    <button
+      class="btn"
+      onclick="readerBack()">
+      Chapters
+    </button>
+
+    <button
+      class="btn"
+      onclick="nextChapter()"
+      ${
+        currentChapterIndex >=
+        currentChapters.length - 1
+        ? "disabled"
+        : ""
+      }>
+      Next →
+    </button>
+
+  `;
+}
+
+
+function previousChapter(){
+
+  if(
+    currentChapterIndex > 0
+  ){
+
+    readChapter(
+      currentChapterIndex - 1
+    );
+  }
+
+}
+
+
+function nextChapter(){
+
+  if(
+    currentChapterIndex <
+    currentChapters.length - 1
+  ){
+
+    readChapter(
+      currentChapterIndex + 1
+    );
+  }
+
+}
+
+
+function readerBack(){
+
+  if(currentManga){
+
+    showPageWithoutReload(
+      "detail"
+    );
+
+    renderDetail(
+      currentManga
+    );
+
+  }else{
+
+    showPage(
+      "home"
+    );
+
+  }
+
+}
+
+
+/* =========================================================
+   INITIAL
+========================================================= */
+
+document.addEventListener(
+  "DOMContentLoaded",
+  () => {
+
+    loadHome();
+
+  }
+);
+</script>
+
+</body>
+</html>
