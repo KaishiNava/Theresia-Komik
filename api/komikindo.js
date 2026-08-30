@@ -4,18 +4,65 @@ const cheerio = require("cheerio");
 const BASE_URL = "https://komikindo.ch";
 
 const client = axios.create({
-  timeout: 20000,
+  timeout: 12000,
   maxRedirects: 5,
+  validateStatus: status => status >= 200 && status < 500,
   headers: {
     "User-Agent":
-      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36",
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
     "Accept":
       "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
     "Accept-Language":
       "id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7",
-    "Cache-Control": "no-cache"
+    "Cache-Control": "no-cache",
+    "Pragma": "no-cache"
   }
 });
+
+/* =========================================================
+   CACHE
+========================================================= */
+
+const cache = new Map();
+
+const CACHE_TTL = 45 * 1000;
+
+function getCache(key) {
+  const item = cache.get(key);
+
+  if (!item) return null;
+
+  if (Date.now() - item.time > CACHE_TTL) {
+    cache.delete(key);
+    return null;
+  }
+
+  return item.data;
+}
+
+function setCache(key, data) {
+  cache.set(key, {
+    time: Date.now(),
+    data
+  });
+
+  // Jangan biarkan memory Vercel terus membesar
+  if (cache.size > 100) {
+    const first = cache.keys().next().value;
+    cache.delete(first);
+  }
+}
+
+/* =========================================================
+   HELPERS
+========================================================= */
+
+function text(value) {
+  return String(value || "")
+    .replace(/\u00a0/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
 
 function absoluteUrl(value) {
   if (!value) return null;
@@ -29,76 +76,91 @@ function absoluteUrl(value) {
 
 function cleanUrl(value) {
   const url = absoluteUrl(value);
-  return url ? url.replace(/#.*$/, "") : null;
+
+  if (!url) return null;
+
+  return url.replace(/#.*$/, "");
 }
 
 function slugFromUrl(value) {
   const url = absoluteUrl(value);
+
   if (!url) return null;
 
   try {
-    const parts = new URL(url).pathname
+    const pathname = new URL(url).pathname;
+
+    const parts = pathname
       .split("/")
       .filter(Boolean);
 
     return parts.length
       ? parts[parts.length - 1]
       : null;
+
   } catch {
     return null;
   }
 }
 
-function text(value) {
-  return String(value || "")
-    .replace(/\u00a0/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
+function isMangaUrl(url) {
+  if (!url) return false;
 
-function firstText($, selectors, root = null) {
-  for (const selector of selectors) {
-    const node = root ? root.find(selector).first() : $(selector).first();
+  try {
+    const pathname = new URL(url).pathname;
 
-    if (node.length) {
-      const value = text(node.text());
-      if (value) return value;
-    }
+    return (
+      pathname.startsWith("/komik/") &&
+      pathname.split("/").filter(Boolean).length >= 2
+    );
+
+  } catch {
+    return false;
   }
-
-  return null;
 }
 
-function firstAttr($, selectors, attr, root = null) {
-  for (const selector of selectors) {
-    const node = root ? root.find(selector).first() : $(selector).first();
+function isChapterUrl(url) {
+  if (!url) return false;
 
-    if (node.length) {
-      const value = node.attr(attr);
+  try {
+    const pathname =
+      new URL(url).pathname
+        .split("/")
+        .filter(Boolean)
+        .join("/");
 
-      if (value) {
-        return cleanUrl(value);
-      }
-    }
+    return (
+      /(^|\/)chapter[-/]/i.test(pathname) ||
+      /-chapter-[0-9]/i.test(pathname) ||
+      /\/[^/]+-ch(?:apter)?[-. ]?[0-9]/i.test(pathname)
+    );
+
+  } catch {
+    return false;
   }
-
-  return null;
 }
 
-function getImage($, root) {
-  const img = root.find("img").first();
+/* =========================================================
+   IMAGE
+========================================================= */
+
+function getImage($, element) {
+  const img = $(element)
+    .find("img")
+    .first();
 
   if (!img.length) return null;
 
-  const candidates = [
+  const attrs = [
+    "src",
     "data-src",
     "data-lazy-src",
     "data-original",
     "data-lazy",
-    "src"
+    "data-fallback-src"
   ];
 
-  for (const attr of candidates) {
+  for (const attr of attrs) {
     const value = img.attr(attr);
 
     if (value) {
@@ -112,145 +174,93 @@ function getImage($, root) {
 }
 
 /* =========================================================
-   CARD
+   PARSE MANGA CARD
 ========================================================= */
 
-function parseCard($, element) {
-  const el = $(element);
+function parseMangaLink($, element) {
+  const a = $(element);
 
-  const links = el.find("a[href]");
+  const href =
+    a.attr("href") ||
+    a.find("a").first().attr("href");
 
-  if (!links.length) return null;
+  const url = cleanUrl(href);
 
-  let mangaLink = null;
-
-  links.each((i, node) => {
-    if (mangaLink) return;
-
-    const href = $(node).attr("href");
-
-    if (!href) return;
-
-    const url = absoluteUrl(href);
-
-    if (!url) return;
-
-    if (
-      new URL(url).pathname.startsWith("/komik/")
-    ) {
-      mangaLink = url;
-    }
-  });
-
-  if (!mangaLink) {
-    const href = links.first().attr("href");
-    mangaLink = absoluteUrl(href);
+  if (!isMangaUrl(url)) {
+    return null;
   }
 
-  if (!mangaLink) return null;
-
-  const title =
-    firstText(
-      $,
-      [
-        ".tt h4",
-        ".tt",
-        ".entry-title",
-        "h2",
-        "h3",
-        "h4"
-      ],
-      el
-    ) ||
-    text(
-      links
-        .filter((i, node) => {
-          const href = $(node).attr("href");
-          return href && href.includes("/komik/");
-        })
-        .first()
-        .attr("title")
-    ) ||
-    text(
-      links
-        .filter((i, node) => {
-          const href = $(node).attr("href");
-          return href && href.includes("/komik/");
-        })
-        .first()
-        .text()
-    );
+  let title =
+    text(a.find("h2,h3,h4").first().text()) ||
+    text(a.find(".tt").first().text()) ||
+    text(a.attr("title")) ||
+    text(a.find("a").first().attr("title")) ||
+    text(a.text());
 
   if (!title) return null;
 
-  const chapter =
-    firstText(
-      $,
-      [
-        ".epxs",
-        ".chapter",
-        ".epx",
-        ".lsch a",
-        ".eph-num"
-      ],
-      el
-    );
-
-  const rating =
-    firstText(
-      $,
-      [
-        ".numscore",
-        ".rating",
-        ".score"
-      ],
-      el
-    );
-
-  const type =
-    firstText(
-      $,
-      [
-        ".typeflag",
-        ".mtype"
-      ],
-      el
-    );
+  // Bersihkan metadata yang kadang ikut terbaca
+  title = title
+    .replace(/\bWarna\b/gi, "")
+    .replace(/\s+/g, " ")
+    .trim();
 
   return {
     title,
-    slug: slugFromUrl(mangaLink),
-    endpoint: mangaLink,
-    thumbnail: getImage($, el),
-    chapter: chapter || null,
-    rating: rating || null,
-    type: type || null
+    slug: slugFromUrl(url),
+    endpoint: url,
+    thumbnail: getImage($, element),
+    chapter: null,
+    rating: null,
+    type: null
   };
 }
 
-function parseCards($) {
-  const selectors = [
-    ".listupd .bsx",
-    ".listupd .bs",
-    ".listupd article",
-    ".animepost",
-    ".bsx"
-  ];
+/* =========================================================
+   GENERIC MANGA CARDS
+========================================================= */
 
+function parseCards($) {
   const results = [];
   const seen = new Set();
 
+  const selectors = [
+    ".listupd .bsx",
+    ".listupd .bs",
+    ".listupd .animepost",
+    ".bsx",
+    ".animepost",
+    ".page-item-detail"
+  ];
+
   for (const selector of selectors) {
-    $(selector).each((i, element) => {
-      const item = parseCard($, element);
+    $(selector).each((i, el) => {
+      const item = parseMangaLink($, el);
 
       if (!item) return;
 
-      const key = item.endpoint || item.slug;
+      if (seen.has(item.endpoint)) return;
 
-      if (!key || seen.has(key)) return;
+      seen.add(item.endpoint);
+      results.push(item);
+    });
+  }
 
-      seen.add(key);
+  /*
+   * Fallback:
+   * Website saat ini juga memiliki halaman yang
+   * menampilkan manga sebagai heading/link biasa.
+   */
+
+  if (results.length === 0) {
+    $("a[href]").each((i, el) => {
+      const item = parseMangaLink($, el);
+
+      if (!item) return;
+
+      if (seen.has(item.endpoint)) return;
+
+      seen.add(item.endpoint);
       results.push(item);
     });
   }
@@ -262,21 +272,62 @@ function parseCards($) {
    FETCH
 ========================================================= */
 
-async function fetchPage(url) {
-  const response = await client.get(url, {
-    headers: {
-      Referer: BASE_URL
-    }
-  });
+async function fetchPage(url, options = {}) {
+  const cacheKey = url;
 
-  if (
-    !response.data ||
-    typeof response.data !== "string"
-  ) {
-    throw new Error("HTML sumber kosong.");
+  if (!options.noCache) {
+    const cached = getCache(cacheKey);
+
+    if (cached) {
+      return cached;
+    }
   }
 
-  return response.data;
+  let lastError = null;
+
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      const response = await client.get(url, {
+        headers: {
+          Referer: options.referer || BASE_URL
+        }
+      });
+
+      if (response.status >= 400) {
+        throw new Error(
+          `HTTP ${response.status}`
+        );
+      }
+
+      const html = response.data;
+
+      if (
+        typeof html !== "string" ||
+        html.length < 500
+      ) {
+        throw new Error(
+          "Response HTML tidak valid."
+        );
+      }
+
+      setCache(cacheKey, html);
+
+      return html;
+
+    } catch (error) {
+      lastError = error;
+
+      if (attempt < 3) {
+        await new Promise(resolve =>
+          setTimeout(resolve, 700 * attempt)
+        );
+      }
+    }
+  }
+
+  throw lastError || new Error(
+    "Gagal mengambil halaman sumber."
+  );
 }
 
 /* =========================================================
@@ -290,28 +341,68 @@ async function home() {
   const hotManga = [];
   const latestUpdate = [];
 
-  $(".bixbox.hothome .bsx").each((i, el) => {
-    const item = parseCard($, el);
+  const hotSeen = new Set();
+  const latestSeen = new Set();
 
-    if (item) {
-      hotManga.push(item);
-    }
+  /*
+   * HOT / POPULAR
+   */
+
+  $(
+    ".hothome .bsx," +
+    ".hothome .bs," +
+    ".hothome .animepost"
+  ).each((i, el) => {
+    const item = parseMangaLink($, el);
+
+    if (!item) return;
+
+    if (hotSeen.has(item.endpoint)) return;
+
+    hotSeen.add(item.endpoint);
+    hotManga.push(item);
   });
+
+  /*
+   * Jika struktur berubah,
+   * cari manga link dari halaman.
+   */
+
+  if (hotManga.length === 0) {
+    $("a[href]").each((i, el) => {
+      const item = parseMangaLink($, el);
+
+      if (!item) return;
+
+      if (latestSeen.has(item.endpoint)) return;
+
+      latestSeen.add(item.endpoint);
+      latestUpdate.push(item);
+    });
+  }
+
+  /*
+   * Latest
+   */
 
   $(
     ".bixbox:not(.hothome) .bsx," +
+    ".bixbox:not(.hothome) .bs," +
     ".bixbox:not(.hothome) .animepost"
   ).each((i, el) => {
-    const item = parseCard($, el);
+    const item = parseMangaLink($, el);
 
-    if (item) {
-      latestUpdate.push(item);
-    }
+    if (!item) return;
+
+    if (latestSeen.has(item.endpoint)) return;
+
+    latestSeen.add(item.endpoint);
+    latestUpdate.push(item);
   });
 
   return {
     hotManga,
-    latestUpdate: dedupe(latestUpdate)
+    latestUpdate
   };
 }
 
@@ -320,20 +411,33 @@ async function home() {
 ========================================================= */
 
 async function search(q, page = 1) {
-  const pageNumber = Math.max(
-    1,
-    Number(page) || 1
-  );
+  const query = text(q);
 
-  const url =
-    pageNumber === 1
-      ? `${BASE_URL}/?s=${encodeURIComponent(q)}`
-      : `${BASE_URL}/page/${pageNumber}/?s=${encodeURIComponent(q)}`;
+  if (!query) {
+    throw new Error("Parameter q wajib diisi.");
+  }
+
+  let url;
+
+  if (page <= 1) {
+    url =
+      `${BASE_URL}/?s=${encodeURIComponent(query)}`;
+  } else {
+    url =
+      `${BASE_URL}/page/${page}/?s=${encodeURIComponent(query)}`;
+  }
 
   const html = await fetchPage(url);
   const $ = cheerio.load(html);
 
-  return parseCards($);
+  const results = parseCards($);
+
+  return {
+    query,
+    page,
+    total: results.length,
+    results
+  };
 }
 
 /* =========================================================
@@ -341,20 +445,97 @@ async function search(q, page = 1) {
 ========================================================= */
 
 async function latest(page = 1) {
-  const pageNumber = Math.max(
-    1,
-    Number(page) || 1
-  );
-
   const url =
-    pageNumber === 1
+    page <= 1
       ? `${BASE_URL}/komik-terbaru/`
-      : `${BASE_URL}/komik-terbaru/page/${pageNumber}/`;
+      : `${BASE_URL}/komik-terbaru/page/${page}/`;
 
   const html = await fetchPage(url);
   const $ = cheerio.load(html);
 
-  return parseCards($);
+  const results = [];
+
+  const seen = new Set();
+
+  /*
+   * Struktur terbaru KomikIndo saat ini:
+   *
+   * Judul manga
+   * Chapter
+   * waktu
+   */
+
+  $("a[href]").each((i, el) => {
+    const href = cleanUrl(
+      $(el).attr("href")
+    );
+
+    if (!isMangaUrl(href)) {
+      return;
+    }
+
+    const title = text($(el).text());
+
+    if (!title) return;
+
+    if (seen.has(href)) return;
+
+    seen.add(href);
+
+    /*
+     * Cari parent yang biasanya berisi
+     * chapter dan waktu update.
+     */
+
+    const parent =
+      $(el).closest(
+        "li,.bsx,.animepost,.postbody,.bixbox,article"
+      );
+
+    let chapter = null;
+
+    if (parent.length) {
+      const parentText =
+        text(parent.text());
+
+      const match =
+        parentText.match(
+          /\b(?:Ch\.?|Chapter)\s*[\w.-]+/i
+        );
+
+      if (match) {
+        chapter = match[0];
+      }
+    }
+
+    results.push({
+      title,
+      slug: slugFromUrl(href),
+      endpoint: href,
+      thumbnail: getImage($, el),
+      chapter
+    });
+  });
+
+  /*
+   * Fallback jika struktur halaman berubah
+   */
+
+  if (results.length === 0) {
+    const fallback = parseCards($);
+
+    return {
+      page,
+      total: fallback.length,
+      results: fallback
+    };
+  }
+
+  return {
+    page,
+    total: results.length,
+    results
+  };
 }
 
 /* =========================================================
@@ -362,20 +543,66 @@ async function latest(page = 1) {
 ========================================================= */
 
 async function listManga(page = 1) {
-  const pageNumber = Math.max(
-    1,
-    Number(page) || 1
-  );
-
   const url =
-    pageNumber === 1
+    page <= 1
       ? `${BASE_URL}/daftar-manga/`
-      : `${BASE_URL}/daftar-manga/page/${pageNumber}/`;
+      : `${BASE_URL}/daftar-manga/page/${page}/`;
 
   const html = await fetchPage(url);
   const $ = cheerio.load(html);
 
-  return parseCards($);
+  const results = [];
+  const seen = new Set();
+
+  /*
+   * Halaman daftar saat ini mempunyai
+   * manga sebagai link / heading.
+   */
+
+  $("a[href]").each((i, el) => {
+    const href =
+      cleanUrl($(el).attr("href"));
+
+    if (!isMangaUrl(href)) return;
+
+    const title =
+      text($(el).find("h2,h3,h4").first().text()) ||
+      text($(el).attr("title")) ||
+      text($(el).text());
+
+    if (!title) return;
+
+    if (seen.has(href)) return;
+
+    seen.add(href);
+
+    results.push({
+      title,
+      slug: slugFromUrl(href),
+      endpoint: href,
+      thumbnail: getImage($, el),
+      rating: null,
+      chapter: null
+    });
+  });
+
+  /*
+   * Fallback
+   */
+
+  if (results.length === 0) {
+    return {
+      page,
+      total: 0,
+      results: []
+    };
+  }
+
+  return {
+    page,
+    total: results.length,
+    results
+  };
 }
 
 /* =========================================================
@@ -383,204 +610,350 @@ async function listManga(page = 1) {
 ========================================================= */
 
 async function detail(slug) {
-  const safeSlug = String(slug || "")
-    .trim()
-    .replace(/^\/+|\/+$/g, "");
+  slug = text(slug);
 
-  if (!safeSlug) {
-    throw new Error("Slug manga kosong.");
+  if (!slug) {
+    throw new Error(
+      "Parameter slug wajib diisi."
+    );
   }
 
   const url =
-    `${BASE_URL}/komik/${encodeURIComponent(safeSlug)}/`;
+    `${BASE_URL}/komik/${encodeURIComponent(slug)}/`;
 
   const html = await fetchPage(url);
   const $ = cheerio.load(html);
 
   const title =
-    firstText($, [
-      ".infox h1",
-      ".entry-title",
-      "h1"
-    ]);
+    text($(".infox h1").first().text()) ||
+    text($("h1.entry-title").first().text()) ||
+    text($("h1").first().text());
 
-  const thumbnail =
-    firstAttr(
-      $,
-      [
-        ".thumb img",
-        ".ime img",
-        ".bigcontent img",
-        ".infox img"
-      ],
-      "data-src"
-    ) ||
-    firstAttr(
-      $,
-      [
-        ".thumb img",
-        ".ime img",
-        ".bigcontent img",
-        ".infox img"
-      ],
-      "src"
-    );
+  /*
+   * Thumbnail
+   */
+
+  let thumbnail = null;
+
+  const thumbSelectors = [
+    ".thumb img",
+    ".ime img",
+    ".bigcover img",
+    ".c-tabs-item__content img"
+  ];
+
+  for (const selector of thumbSelectors) {
+    const value = getImage($, $(selector).first());
+
+    if (value) {
+      thumbnail = value;
+      break;
+    }
+  }
+
+  /*
+   * Synopsis
+   */
 
   const synopsis =
-    firstText($, [
-      ".entry-content[itemprop='description']",
-      ".desc",
-      ".entry-content",
-      ".description"
-    ]);
+    text(
+      $(".entry-content[itemprop='description']")
+        .first()
+        .text()
+    ) ||
+    text($(".desc").first().text()) ||
+    text(
+      $(".entry-content")
+        .first()
+        .text()
+    );
+
+  /*
+   * Rating
+   */
 
   const rating =
-    firstText($, [
-      ".numscore",
-      ".rating",
-      ".score"
-    ]);
+    text($(".numscore").first().text()) ||
+    null;
+
+  /*
+   * Status
+   */
 
   const status =
-    firstText($, [
-      ".fstatus",
-      ".status"
-    ]);
+    text($(".fstatus").first().text()) ||
+    text($(".status").first().text()) ||
+    null;
 
-  const author =
-    firstText($, [
-      ".authorx",
-      ".author",
-      "[itemprop='author']"
-    ]);
-
-  const artist =
-    firstText($, [
-      ".artistx",
-      ".artist",
-      ".illustrator"
-    ]);
+  /*
+   * Genres
+   */
 
   const genres = [];
+  const genreSeen = new Set();
 
   $(
     ".genre-info a," +
     ".genrex a," +
     ".genres a," +
     ".mgen a," +
-    ".genres-content a"
+    ".seriestugenre a"
   ).each((i, el) => {
     const value = text($(el).text());
 
-    if (
-      value &&
-      !genres.includes(value)
-    ) {
-      genres.push(value);
-    }
+    if (!value) return;
+
+    if (genreSeen.has(value)) return;
+
+    genreSeen.add(value);
+    genres.push(value);
   });
 
   /*
-   * Chapter hanya dikembalikan sebagai metadata/link
-   * dan tidak mengambil halaman/gambar baca.
+   * CHAPTER
+   *
+   * Jangan bergantung pada .eplister saja.
+   * Website sekarang bisa berubah struktur.
    */
 
-  const chapters = [];
+  const chapterList = [];
   const chapterSeen = new Set();
 
-  $(
-    "#chapterlist li," +
-    ".eplister li," +
-    ".clstyle li," +
-    ".listing-chapters_wrap li"
-  ).each((i, el) => {
-    const a = $(el)
-      .find("a[href]")
-      .first();
+  $("a[href]").each((i, el) => {
+    const a = $(el);
 
-    if (!a.length) return;
+    const href =
+      cleanUrl(a.attr("href"));
 
-    const href = a.attr("href");
-    const chapterUrl = absoluteUrl(href);
+    if (!isChapterUrl(href)) {
+      return;
+    }
 
-    if (!chapterUrl) return;
+    /*
+     * Pastikan link memang chapter
+     */
 
-    const chapterTitle =
-      firstText(
-        $,
-        [
-          ".chapternum",
-          ".lchx a",
-          ".eph-num a",
-          ".chapter"
-        ],
-        $(el)
-      ) ||
+    const anchorText =
       text(a.text());
 
-    const date =
-      firstText(
-        $,
-        [
-          ".chapterdate",
-          ".eph-date",
-          ".chapter-date"
-        ],
-        $(el)
+    const parentText =
+      text(
+        a.parent().text()
       );
 
+    const combined =
+      `${anchorText} ${parentText}`;
+
     if (
-      chapterSeen.has(chapterUrl)
+      !/chapter|ch\./i.test(combined) &&
+      !/chapter/i.test(href)
     ) {
       return;
     }
 
-    chapterSeen.add(chapterUrl);
+    if (chapterSeen.has(href)) {
+      return;
+    }
 
-    chapters.push({
-      title: chapterTitle || null,
-      slug: slugFromUrl(chapterUrl),
-      url: chapterUrl,
-      date: date || null
+    chapterSeen.add(href);
+
+    const chapterTitle =
+      anchorText ||
+      text(
+        a.find(
+          ".chapternum,.eph-num,.lchx"
+        ).first().text()
+      ) ||
+      slugFromUrl(href);
+
+    let date = null;
+
+    const parent =
+      a.closest(
+        "li,.eplister,.clstyle,.chapter-list,.row"
+      );
+
+    if (parent.length) {
+      date =
+        text(
+          parent.find(
+            ".chapterdate,.eph-date,.chapter-date"
+          ).first().text()
+        ) || null;
+    }
+
+    chapterList.push({
+      title: chapterTitle,
+      slug: slugFromUrl(href),
+      url: href,
+      date
     });
+  });
+
+  /*
+   * Urutkan chapter dari terbesar ke terkecil
+   */
+
+  chapterList.sort((a, b) => {
+    const getNumber = value => {
+      const match =
+        String(value || "").match(
+          /(\d+(?:\.\d+)?)/
+        );
+
+      return match
+        ? Number(match[1])
+        : -1;
+    };
+
+    return (
+      getNumber(b.title) -
+      getNumber(a.title)
+    );
   });
 
   return {
     title,
-    slug: safeSlug,
-    endpoint: url,
+    slug,
     thumbnail,
     synopsis,
     rating,
     status,
-    author,
-    artist,
     genres,
-    totalChapters: chapters.length,
-    chapters
+    chapterList,
+    totalChapters: chapterList.length
   };
 }
 
 /* =========================================================
-   UTILS
+   CHAPTER
 ========================================================= */
 
-function dedupe(items) {
+async function chapter(slug) {
+  slug = text(slug);
+
+  if (!slug) {
+    throw new Error(
+      "Parameter slug wajib diisi."
+    );
+  }
+
+  const url =
+    `${BASE_URL}/${encodeURIComponent(slug)}/`;
+
+  const html = await fetchPage(url);
+  const $ = cheerio.load(html);
+
+  const title =
+    text($(".entry-title").first().text()) ||
+    text($(".title-section").first().text()) ||
+    text($("h1").first().text());
+
+  const images = [];
   const seen = new Set();
 
-  return items.filter(item => {
-    const key =
-      item.endpoint ||
-      item.slug ||
-      item.title;
+  /*
+   * Prioritas reader.
+   */
 
-    if (!key || seen.has(key)) {
-      return false;
+  const selectors = [
+    "#readerarea img",
+    ".reading-content img",
+    ".readingarea img",
+    ".chapter-content img",
+    ".reader-area img",
+    ".reading-content-container img",
+    ".entry-content img"
+  ];
+
+  for (const selector of selectors) {
+    $(selector).each((i, el) => {
+      addReaderImage($, el);
+    });
+
+    if (images.length > 0) {
+      break;
+    }
+  }
+
+  /*
+   * Fallback:
+   * beberapa chapter menggunakan container
+   * berbeda dari selector di atas.
+   */
+
+  if (images.length === 0) {
+    $("img").each((i, el) => {
+      addReaderImage($, el);
+    });
+  }
+
+  function addReaderImage($, element) {
+    const img = $(element);
+
+    const sources = [
+      img.attr("data-src"),
+      img.attr("data-lazy-src"),
+      img.attr("data-original"),
+      img.attr("data-lazy"),
+      img.attr("src")
+    ];
+
+    let url = null;
+
+    for (const source of sources) {
+      const candidate = cleanUrl(source);
+
+      if (candidate) {
+        url = candidate;
+        break;
+      }
     }
 
-    seen.add(key);
-    return true;
-  });
+    if (!url) return;
+
+    const lower = url.toLowerCase();
+
+    /*
+     * Abaikan gambar UI / tracking.
+     */
+
+    const blocked = [
+      "logo",
+      "avatar",
+      "favicon",
+      "histats",
+      "google-analytics",
+      "gravatar"
+    ];
+
+    if (
+      blocked.some(value =>
+        lower.includes(value)
+      )
+    ) {
+      return;
+    }
+
+    if (
+      lower.endsWith(".gif") &&
+      !lower.includes("chapter")
+    ) {
+      return;
+    }
+
+    if (seen.has(url)) return;
+
+    seen.add(url);
+    images.push(url);
+  }
+
+  return {
+    title,
+    slug,
+    totalImages: images.length,
+    images
+  };
 }
 
 /* =========================================================
@@ -595,7 +968,7 @@ module.exports = async function handler(req, res) {
 
   res.setHeader(
     "Access-Control-Allow-Methods",
-    "GET, OPTIONS"
+    "GET,OPTIONS"
   );
 
   res.setHeader(
@@ -603,15 +976,26 @@ module.exports = async function handler(req, res) {
     "Content-Type"
   );
 
+  res.setHeader(
+    "Cache-Control",
+    "s-maxage=30, stale-while-revalidate=60"
+  );
+
   if (req.method === "OPTIONS") {
     return res.status(204).end();
   }
 
-  const action = String(
-    req.query.action || ""
-  )
-    .trim()
-    .toLowerCase();
+  if (req.method !== "GET") {
+    return res.status(405).json({
+      status: false,
+      message: "Method tidak diizinkan."
+    });
+  }
+
+  const action =
+    String(
+      req.query.action || ""
+    ).toLowerCase();
 
   try {
     let data;
@@ -622,41 +1006,52 @@ module.exports = async function handler(req, res) {
         break;
 
       case "search": {
-        const q = String(
-          req.query.q || ""
-        ).trim();
+        const q =
+          text(req.query.q);
+
+        const page =
+          Math.max(
+            1,
+            Number(req.query.page || 1)
+          );
 
         if (!q) {
           return res.status(400).json({
             status: false,
-            message: "Parameter q wajib diisi."
+            message:
+              "Parameter q wajib diisi."
           });
         }
 
-        data = await search(
-          q,
-          req.query.page || 1
-        );
-
+        data = await search(q, page);
         break;
       }
 
-      case "latest":
-        data = await latest(
-          req.query.page || 1
-        );
-        break;
+      case "latest": {
+        const page =
+          Math.max(
+            1,
+            Number(req.query.page || 1)
+          );
 
-      case "list":
-        data = await listManga(
-          req.query.page || 1
-        );
+        data = await latest(page);
         break;
+      }
+
+      case "list": {
+        const page =
+          Math.max(
+            1,
+            Number(req.query.page || 1)
+          );
+
+        data = await listManga(page);
+        break;
+      }
 
       case "detail": {
-        const slug = String(
-          req.query.slug || ""
-        ).trim();
+        const slug =
+          text(req.query.slug);
 
         if (!slug) {
           return res.status(400).json({
@@ -670,28 +1065,35 @@ module.exports = async function handler(req, res) {
         break;
       }
 
+      case "chapter": {
+        const slug =
+          text(req.query.slug);
+
+        if (!slug) {
+          return res.status(400).json({
+            status: false,
+            message:
+              "Parameter slug wajib diisi."
+          });
+        }
+
+        data = await chapter(slug);
+        break;
+      }
+
       default:
         return res.status(400).json({
           status: false,
-          message: "Action tidak tersedia.",
+          message:
+            "Action tidak tersedia.",
           available: [
             "home",
             "search",
             "latest",
             "list",
-            "detail"
-          ],
-          examples: {
-            home: "/api/komikindo?action=home",
-            search:
-              "/api/komikindo?action=search&q=magic",
-            latest:
-              "/api/komikindo?action=latest&page=1",
-            list:
-              "/api/komikindo?action=list&page=1",
-            detail:
-              "/api/komikindo?action=detail&slug=magic-emperor"
-          }
+            "detail",
+            "chapter"
+          ]
         });
     }
 
@@ -703,28 +1105,20 @@ module.exports = async function handler(req, res) {
     });
 
   } catch (error) {
-    console.error("KOMIKINDO SCRAPER ERROR:", {
-      message: error.message,
-      code: error.code,
-      status: error.response?.status,
-      url: error.config?.url
-    });
+    console.error(
+      `[KomikIndo:${action}]`,
+      error
+    );
 
-    return res.status(
-      error.response?.status >= 400
-        ? error.response.status
-        : 500
-    ).json({
+    return res.status(502).json({
       status: false,
       message:
-        "Gagal mengambil data dari sumber.",
-      error: {
-        message: error.message,
-        sourceStatus:
-          error.response?.status || null,
-        sourceUrl:
-          error.config?.url || null
-      }
+        "Sumber sedang tidak merespons atau struktur halaman berubah.",
+      action,
+      detail:
+        process.env.NODE_ENV === "development"
+          ? error.message
+          : undefined
     });
   }
 };
