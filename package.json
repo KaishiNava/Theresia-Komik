@@ -1,13 +1,13 @@
 {
-  "name": "komikindo-web",
+  "name": "komikindo-api",
   "version": "1.0.0",
-  "description": "Komik reader web with serverless scraper",
-  "main": "api/komikindo.js",
-  "scripts": {
-    "start": "vercel dev"
-  },
+  "description": "API untuk Scraper KomikIndo",
+  "main": "api/index.js",
   "dependencies": {
-    "axios": "^1.11.0",
-    "cheerio": "^1.1.2"
+    "axios": "^1.6.5",
+    "cheerio": "^1.0.0-rc.12"
+  },
+  "engines": {
+    "node": "18.x"
   }
 }
